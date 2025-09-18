@@ -16,8 +16,15 @@ include_directories(${GMP_INCLUDE_DIRS})
 # 添加编译选项
 add_compile_options(${GMP_CFLAGS_OTHER})
 
-# 创建可执行文件用于测试GMP
+# 收集源文件
+file(GLOB_RECURSE SOURCES "src/**/*.cpp" "src/*.cpp")
+
+# 创建GMP测试可执行文件
 add_executable(test_gmp tests/test_gmp.cpp)
+
+# 创建曲线生成器测试可执行文件
+add_executable(test_generator tests/test_generator.cpp ${SOURCES})
 
 # 链接GMP库
 target_link_libraries(test_gmp ${GMP_LIBRARIES})
+target_link_libraries(test_generator ${GMP_LIBRARIES})
