@@ -17,9 +17,7 @@ include_directories(${GMP_INCLUDE_DIRS})
 add_compile_options(${GMP_CFLAGS_OTHER})
 
 # 创建可执行文件用于测试GMP
-add_executable(test_gmp test_gmp.cpp)
+add_executable(test_gmp tests/test_gmp.cpp)
 
 # 链接GMP库
 target_link_libraries(test_gmp ${GMP_LIBRARIES})
-
-# 其他原有的项目配置...
