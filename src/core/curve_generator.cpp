@@ -74,10 +74,11 @@ bool generate_montgomery_curve(MontgomeryCurve* curve, int security_level) {
         mpz_urandomm(curve->B, state, curve->p);
     } while (mpz_sgn(curve->B) == 0);
 
-    // 设置默认基点和相关参数（实际应用中需要更复杂的计算）
-    mpz_set_ui(curve->x, 1);
-    mpz_set_ui(curve->y, 1);
-    mpz_set_ui(curve->n, 0); // 需要实际计算
+    // 暂时不设置基点，因为计算在曲线上的点比较复杂
+    // 在实际应用中，需要更复杂的算法来找到曲线上的点和相应的阶数
+    mpz_set_ui(curve->x, 0);  // 0表示未设置
+    mpz_set_ui(curve->y, 0);  // 0表示未设置
+    mpz_set_ui(curve->n, 0);  // 0表示未设置
     mpz_set_ui(curve->h, 1);
 
     gmp_randclear(state);
