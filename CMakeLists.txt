@@ -1,3 +1,4 @@
+CMakeLists.txt
 cmake_minimum_required(VERSION 3.10)
 project(ecc_toolkit)
 
@@ -28,7 +29,11 @@ add_executable(test_generator tests/test_generator.cpp ${SOURCES})
 # 创建参数验证器测试可执行文件
 add_executable(test_validator tests/test_validator.cpp ${SOURCES})
 
+# 创建Montgomery曲线运算测试可执行文件
+add_executable(test_montgomery tests/test_montgomery.cpp ${SOURCES})
+
 # 链接GMP库
 target_link_libraries(test_gmp ${GMP_LIBRARIES})
 target_link_libraries(test_generator ${GMP_LIBRARIES})
 target_link_libraries(test_validator ${GMP_LIBRARIES})
+target_link_libraries(test_montgomery ${GMP_LIBRARIES})
