@@ -79,6 +79,13 @@ bool generate_montgomery_curve(MontgomeryCurve* curve, int security_level) {
 
     gmp_randclear(state);
 
+    // 检查是否成功找到基点
+    if (mpz_sgn(curve->x) == 0 && mpz_sgn(curve->y) == 0) {
+        // 如果没有找到基点，重新生成曲线参数并再次尝试
+        std::cout << "Warning: Base point not found, regenerating curve parameters..." << std::endl;
+        return generate_montgomery_curve(curve, security_level);
+    }
+
     return true;
 }
 
