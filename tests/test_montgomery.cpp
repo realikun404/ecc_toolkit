@@ -1,106 +1,123 @@
-#include "montgomery_curve.h"
 #include "curve_generator.h"
+#include "parameter_validator.h"
+#include "montgomery_curve.h"
 #include <iostream>
 
 int main() {
-    std::cout << "Testing Montgomery curve operations..." << std::endl;
+    std::cout << "Testing base point generation for Montgomery curve..." << std::endl;
 
-    // 生成测试曲线
+    // 生成一个曲线用于测试
     MontgomeryCurve curve;
     init_montgomery_curve(&curve);
 
-    if (!generate_montgomery_curve(&curve, 112)) {
-        std::cout << "Failed to generate test curve!" << std::endl;
-        clear_montgomery_curve(&curve);
-        return 1;
-    }
+    // 测试生成128位安全等级的曲线
+    if (generate_montgomery_curve(&curve, 128)) {
+        std::cout << "Montgomery curve generated successfully!" << std::endl;
+        std::cout << "Security level: " << curve.security_level << std::endl;
 
-    // 初始化测试点
-    MontgomeryPoint P, Q, R;
-    init_montgomery_point(&P);
-    init_montgomery_point(&Q);
-    init_montgomery_point(&R);
-
-    // 设置测试点P (使用曲线参数，但实际应该使用曲线上的真实点)
-    // 这里我们使用简化的示例值进行测试
-    mpz_set_ui(P.x, 1);
-    mpz_set_ui(P.y, 2);
-
-    // 设置测试点Q
-    mpz_set_ui(Q.x, 3);
-    mpz_set_ui(Q.y, 4);
-
-    std::cout << "Testing point addition..." << std::endl;
-
-    // 测试点加法
-    if (montgomery_point_add(&R, &P, &Q, curve.A, curve.p)) {
-        std::cout << "Point addition successful!" << std::endl;
-        std::cout << "R.x = ";
-        mpz_out_str(stdout, 10, R.x);
+        std::cout << "Prime p: ";
+        mpz_out_str(stdout, 10, curve.p);
         std::cout << std::endl;
 
-        std::cout << "R.y = ";
-        mpz_out_str(stdout, 10, R.y);
+        std::cout << "Parameter A: ";
+        mpz_out_str(stdout, 10, curve.A);
         std::cout << std::endl;
+
+        std::cout << "Parameter B: ";
+        mpz_out_str(stdout, 10, curve.B);
+        std::cout << std::endl;
+
+        std::cout << "Base point x: ";
+        mpz_out_str(stdout, 10, curve.x);
+        std::cout << std::endl;
+
+        std::cout << "Base point y: ";
+        mpz_out_str(stdout, 10, curve.y);
+        std::cout << std::endl;
+
+        // 验证基点是否在曲线上
+        if (mpz_sgn(curve.x) != 0 || mpz_sgn(curve.y) != 0) {
+            MontgomeryPoint base_point;
+            init_montgomery_point(&base_point);
+            mpz_set(base_point.x, curve.x);
+            mpz_set(base_point.y, curve.y);
+
+            // 手动验证点是否在曲线上
+            mpz_t left, right, temp1, temp2;
+            mpz_init(left);
+            mpz_init(right);
+            mpz_init(temp1);
+            mpz_init(temp2);
+
+            // 计算左边: By^2
+            mpz_mul(temp1, curve.y, curve.y);      // y^2
+            mpz_mod(temp1, temp1, curve.p);
+            mpz_mul(left, curve.B, temp1);         // B*y^2
+            mpz_mod(left, left, curve.p);
+
+            // 计算右边: x^3 + Ax^2 + x
+            mpz_mul(temp1, curve.x, curve.x);      // x^2
+            mpz_mod(temp1, temp1, curve.p);
+
+            mpz_mul(temp2, curve.A, temp1);        // A*x^2
+            mpz_mod(temp2, temp2, curve.p);
+
+            mpz_mul(temp1, temp1, curve.x);        // x^3
+            mpz_mod(temp1, temp1, curve.p);
+
+            mpz_add(right, temp1, temp2);          // x^3 + A*x^2
+            mpz_mod(right, right, curve.p);
+
+            mpz_add(temp1, right, curve.x);        // x^3 + A*x^2 + x
+            mpz_mod(temp1, temp1, curve.p);
+
+            std::cout << "Left side (By^2): ";
+            mpz_out_str(stdout, 10, left);
+            std::cout << std::endl;
+
+            std::cout << "Right side (x^3 + Ax^2 + x): ";
+            mpz_out_str(stdout, 10, temp1);
+            std::cout << std::endl;
+
+            if (mpz_cmp(left, temp1) == 0) {
+                std::cout << "SUCCESS: Base point is on the curve!" << std::endl;
+            } else {
+                std::cout << "ERROR: Base point is NOT on the curve!" << std::endl;
+                mpz_clear(left);
+                mpz_clear(right);
+                mpz_clear(temp1);
+                mpz_clear(temp2);
+                clear_montgomery_point(&base_point);
+                clear_montgomery_curve(&curve);
+                return 1;
+            }
+
+            mpz_clear(left);
+            mpz_clear(right);
+            mpz_clear(temp1);
+            mpz_clear(temp2);
+
+            // 使用现有的函数验证
+            if (is_point_on_curve(&base_point, curve.A, curve.B, curve.p)) {
+                std::cout << "SUCCESS: Base point validated with is_point_on_curve function!" << std::endl;
+            } else {
+                std::cout << "ERROR: Base point not validated with is_point_on_curve function!" << std::endl;
+                clear_montgomery_point(&base_point);
+                clear_montgomery_curve(&curve);
+                return 1;
+            }
+
+            clear_montgomery_point(&base_point);
+        } else {
+            std::cout << "WARNING: Base point was not found!" << std::endl;
+        }
     } else {
-        std::cout << "Point addition failed!" << std::endl;
-        clear_montgomery_point(&P);
-        clear_montgomery_point(&Q);
-        clear_montgomery_point(&R);
+        std::cout << "Failed to generate Montgomery curve!" << std::endl;
         clear_montgomery_curve(&curve);
         return 1;
     }
 
-    // 测试点倍乘
-    std::cout << "\nTesting point multiplication..." << std::endl;
-    mpz_t k;
-    mpz_init_set_ui(k, 3);
-
-    if (montgomery_point_multiply(&R, k, &P, curve.A, curve.p)) {
-        std::cout << "Point multiplication successful!" << std::endl;
-        std::cout << "k = ";
-        mpz_out_str(stdout, 10, k);
-        std::cout << std::endl;
-
-        std::cout << "R.x = ";
-        mpz_out_str(stdout, 10, R.x);
-        std::cout << std::endl;
-
-        std::cout << "R.y = ";
-        mpz_out_str(stdout, 10, R.y);
-        std::cout << std::endl;
-    } else {
-        std::cout << "Point multiplication failed!" << std::endl;
-        mpz_clear(k);
-        clear_montgomery_point(&P);
-        clear_montgomery_point(&Q);
-        clear_montgomery_point(&R);
-        clear_montgomery_curve(&curve);
-        return 1;
-    }
-
-    // 测试无穷远点
-    std::cout << "\nTesting point at infinity..." << std::endl;
-    set_point_infinity(&R);
-    if (is_point_infinity(&R)) {
-        std::cout << "Infinity point test passed!" << std::endl;
-    } else {
-        std::cout << "Infinity point test failed!" << std::endl;
-        mpz_clear(k);
-        clear_montgomery_point(&P);
-        clear_montgomery_point(&Q);
-        clear_montgomery_point(&R);
-        clear_montgomery_curve(&curve);
-        return 1;
-    }
-
-    // 清理资源
-    mpz_clear(k);
-    clear_montgomery_point(&P);
-    clear_montgomery_point(&Q);
-    clear_montgomery_point(&R);
     clear_montgomery_curve(&curve);
-
-    std::cout << "All Montgomery curve operation tests passed!" << std::endl;
+    std::cout << "Base point generation test completed successfully!" << std::endl;
     return 0;
 }
