@@ -142,7 +142,8 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
                 // 计算y值
                 mpz_t y;
                 mpz_init(y);
-                if (mpz_sqrtmod(y, y_squared, curve->p)) {
+                bool sqrt_success = mpz_sqrtmod(y, y_squared, curve->p);
+                if (sqrt_success) {
                     // 检查点是否有效
                     if (mpz_sgn(y) != 0) {
                         mpz_set(curve->x, x);

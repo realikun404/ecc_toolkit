@@ -13,7 +13,7 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state);
 // 检查是否为二次剩余
 bool is_quadratic_residue(const mpz_t a, const mpz_t p);
 
-// 计算模平方根（简化版）
-void mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p);
+// 计算模平方根，如果成功返回true，否则返回false
+bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p);
 
 #endif // CURVE_GENERATOR_H
