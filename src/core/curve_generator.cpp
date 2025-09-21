@@ -148,12 +148,12 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
                 bool sqrt_success = mpz_sqrtmod(y, y_squared, curve->p);
                 if (sqrt_success && mpz_sgn(y) != 0) {
                     // 验证点是否在曲线上
-                    mpz_t left_side, right_side;
+                    mpz_t left_side;
                     mpz_init(left_side);
-                    mpz_init(right_side);
 
                     // 计算By^2
-                    mpz_mul(left_side, curve->B, y_squared);
+                    mpz_mul(temp1, curve->B, y);
+                    mpz_mul(left_side, temp1, y);
                     mpz_mod(left_side, left_side, curve->p);
 
                     // 比较左右两边
@@ -161,15 +161,16 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
                         mpz_set(curve->x, x);
                         mpz_set(curve->y, y);
                         mpz_clear(left_side);
-                        mpz_clear(right_side);
                         mpz_clear(y);
                         mpz_clear(temp1);
                         mpz_clear(temp2);
                         mpz_clear(b_inv);
-                        break;
+                        mpz_clear(x);
+                        mpz_clear(rhs);
+                        mpz_clear(y_squared);
+                        return;
                     }
                     mpz_clear(left_side);
-                    mpz_clear(right_side);
                 }
                 mpz_clear(y);
             }
@@ -178,13 +179,10 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
         mpz_clear(temp1);
         mpz_clear(temp2);
         mpz_clear(b_inv);
-
-        // 如果尝试了很长时间还没找到，就使用一个确定能找到点的方法
-        if (i == max_attempts - 1) {
-            // 使用确定性方法寻找基点
-            find_base_point_deterministic(curve);
-        }
     }
+
+    // 如果随机方法没找到，使用确定性方法
+    find_base_point_deterministic(curve);
 
     mpz_clear(x);
     mpz_clear(rhs);
@@ -250,7 +248,8 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
                     mpz_init(left_side);
 
                     // 计算By^2
-                    mpz_mul(left_side, curve->B, y_squared);
+                    mpz_mul(temp1, curve->B, y);
+                    mpz_mul(left_side, temp1, y);
                     mpz_mod(left_side, left_side, curve->p);
 
                     // 比较左右两边
