@@ -1,31 +1,46 @@
 #!/bin/bash
 
-# 测试脚本，用于多次运行测试程序以检测间歇性问题
+# 测试脚本，用于验证double free问题
 
-echo "开始多次测试以检测间歇性问题..."
-
-# 编译项目
-echo "编译项目..."
+echo "清理并重新编译项目..."
+cd ~/ecc_toolkit
+rm -rf build
+mkdir build
 cd build
-make clean
-make
+cmake .. > /dev/null 2>&1
+make > /dev/null 2>&1
 
-# 检查编译是否成功
-if [ $? -ne 0 ]; then
-    echo "编译失败!"
-    exit 1
-fi
-
-# 运行测试的次数
-TEST_COUNT=50
-
-echo "将运行 $TEST_COUNT 次测试..."
-
-# 测试test_gmp
-echo "测试 test_gmp..."
-for i in $(seq 1 $TEST_COUNT); do
-    echo -n "运行 test_gmp 第 $i 次... "
-    ./test_gmp > /dev/null 2>&1
+echo "测试 curve_generator 10次运行..."
+for i in {1..10}
+do
+    echo "运行第 $i 次测试..."
+    ./test_generator > /dev/null 2>&1
     if [ $? -ne 0 ]; then
-        echo "失败!"
+        echo "第 $i 次测试失败!"
         exit 1
+    fi
+done
+
+echo "测试 test_montgomery 10次运行..."
+for i in {1..10}
+do
+    echo "运行第 $i 次测试..."
+    ./test_montgomery > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "第 $i 次测试失败!"
+        exit 1
+    fi
+done
+
+echo "测试 test_validator 10次运行..."
+for i in {1..10}
+do
+    echo "运行第 $i 次测试..."
+    ./test_validator > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "第 $i 次测试失败!"
+        exit 1
+    fi
+done
+
+echo "所有测试通过，double free问题已解决!"

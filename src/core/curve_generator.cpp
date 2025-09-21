@@ -7,6 +7,7 @@
 
 // 初始化Montgomery曲线参数
 void init_montgomery_curve(MontgomeryCurve* curve) {
+    std::cout << "DEBUG: init_montgomery_curve start" << std::endl;
     mpz_init(curve->p);
     mpz_init(curve->A);
     mpz_init(curve->B);
@@ -15,10 +16,12 @@ void init_montgomery_curve(MontgomeryCurve* curve) {
     mpz_init(curve->n);
     mpz_init(curve->h);
     curve->security_level = 0;
+    std::cout << "DEBUG: init_montgomery_curve end" << std::endl;
 }
 
 // 清理Montgomery曲线参数
 void clear_montgomery_curve(MontgomeryCurve* curve) {
+    std::cout << "DEBUG: clear_montgomery_curve start" << std::endl;
     mpz_clear(curve->p);
     mpz_clear(curve->A);
     mpz_clear(curve->B);
@@ -27,10 +30,12 @@ void clear_montgomery_curve(MontgomeryCurve* curve) {
     mpz_clear(curve->n);
     mpz_clear(curve->h);
     curve->security_level = 0;
+    std::cout << "DEBUG: clear_montgomery_curve end" << std::endl;
 }
 
 // 根据安全等级生成Montgomery曲线参数
 bool generate_montgomery_curve(MontgomeryCurve* curve, int security_level) {
+    std::cout << "DEBUG: generate_montgomery_curve start" << std::endl;
     // 设置安全等级
     curve->security_level = security_level;
 
@@ -60,6 +65,7 @@ bool generate_montgomery_curve(MontgomeryCurve* curve, int security_level) {
     // 生成曲线参数A和B (B ≠ 0, A ≠ ±2 mod p)
     // 简化版本：随机生成满足条件的A和B
     gmp_randstate_t state;
+    std::cout << "DEBUG: Initializing gmp_randstate_t" << std::endl;
     gmp_randinit_default(state);
     gmp_randseed_ui(state, time(NULL));
 
@@ -75,15 +81,19 @@ bool generate_montgomery_curve(MontgomeryCurve* curve, int security_level) {
     } while (mpz_sgn(curve->B) == 0);
 
     // 寻找基点
+    std::cout << "DEBUG: Calling find_base_point" << std::endl;
     find_base_point(curve, state);
 
+    std::cout << "DEBUG: Cleaning up gmp_randstate_t" << std::endl;
     gmp_randclear(state);
 
+    std::cout << "DEBUG: generate_montgomery_curve end" << std::endl;
     return true;
 }
 
 // 在Montgomery曲线上寻找基点
 void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
+    std::cout << "DEBUG: find_base_point start" << std::endl;
     // 初始化基点坐标
     mpz_set_ui(curve->x, 0);
     mpz_set_ui(curve->y, 0);
@@ -98,7 +108,8 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
 
     // 尝试不同的x值，直到找到一个在曲线上的点
     int max_attempts = 100000;  // 增加最大尝试次数
-    for (int i = 1; i < max_attempts; i++) {
+    bool found = false;
+    for (int i = 1; i < max_attempts && !found; i++) {
         // 生成随机x值 (从1开始，避免x=0)
         mpz_urandomm(x, state, curve->p);
         if (mpz_sgn(x) == 0) {
@@ -160,37 +171,47 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
                     if (mpz_cmp(left_side, rhs) == 0) {
                         mpz_set(curve->x, x);
                         mpz_set(curve->y, y);
+                        found = true;
+                        std::cout << "DEBUG: Base point found" << std::endl;
                         mpz_clear(left_side);
                         mpz_clear(y);
-                        mpz_clear(temp1);
-                        mpz_clear(temp2);
-                        mpz_clear(b_inv);
-                        mpz_clear(x);
-                        mpz_clear(rhs);
-                        mpz_clear(y_squared);
-                        return;
+                    } else {
+                        mpz_clear(left_side);
+                        mpz_clear(y);
                     }
-                    mpz_clear(left_side);
+                } else {
+                    mpz_clear(y);
                 }
-                mpz_clear(y);
             }
         }
 
         mpz_clear(temp1);
         mpz_clear(temp2);
         mpz_clear(b_inv);
+
+        // 如果找到了基点，清理循环中的变量
+        if (found) {
+            std::cout << "DEBUG: Cleaning up variables in found branch" << std::endl;
+            mpz_clear(x);
+            mpz_clear(rhs);
+            mpz_clear(y_squared);
+            std::cout << "DEBUG: find_base_point end (found branch)" << std::endl;
+            return;
+        }
     }
 
     // 如果随机方法没找到，使用确定性方法
-    find_base_point_deterministic(curve);
-
+    std::cout << "DEBUG: Cleaning up variables before deterministic method" << std::endl;
     mpz_clear(x);
     mpz_clear(rhs);
     mpz_clear(y_squared);
+    find_base_point_deterministic(curve);
+    std::cout << "DEBUG: find_base_point end" << std::endl;
 }
 
 // 确定性方法寻找基点
 void find_base_point_deterministic(MontgomeryCurve* curve) {
+    std::cout << "DEBUG: find_base_point_deterministic start" << std::endl;
     mpz_t x, rhs, y_squared;
     mpz_init(x);
     mpz_init(rhs);
@@ -200,7 +221,8 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
     mpz_set_ui(x, 1);
 
     // 尝试最多1000个x值
-    for (int i = 0; i < 1000; i++) {
+    bool found = false;
+    for (int i = 0; i < 1000 && !found; i++) {
         // 计算右边: x^3 + Ax^2 + x (mod p)
         mpz_t temp1, temp2;
         mpz_init(temp1);
@@ -256,19 +278,17 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
                     if (mpz_cmp(left_side, rhs) == 0) {
                         mpz_set(curve->x, x);
                         mpz_set(curve->y, y);
+                        found = true;
+                        std::cout << "DEBUG: Base point found in deterministic method" << std::endl;
                         mpz_clear(left_side);
                         mpz_clear(y);
-                        mpz_clear(temp1);
-                        mpz_clear(temp2);
-                        mpz_clear(b_inv);
-                        mpz_clear(x);
-                        mpz_clear(rhs);
-                        mpz_clear(y_squared);
-                        return;
+                    } else {
+                        mpz_clear(left_side);
+                        mpz_clear(y);
                     }
-                    mpz_clear(left_side);
+                } else {
+                    mpz_clear(y);
                 }
-                mpz_clear(y);
             }
         }
 
@@ -276,18 +296,31 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
         mpz_clear(temp2);
         mpz_clear(b_inv);
 
+        // 如果找到了基点，清理循环中的变量
+        if (found) {
+            std::cout << "DEBUG: Cleaning up variables in deterministic found branch" << std::endl;
+            mpz_clear(x);
+            mpz_clear(rhs);
+            mpz_clear(y_squared);
+            std::cout << "DEBUG: find_base_point_deterministic end (found branch)" << std::endl;
+            return;
+        }
+
         // 尝试下一个x值
         mpz_add_ui(x, x, 1);
         mpz_mod(x, x, curve->p);
     }
 
+    std::cout << "DEBUG: Cleaning up variables in deterministic method end" << std::endl;
     mpz_clear(x);
     mpz_clear(rhs);
     mpz_clear(y_squared);
+    std::cout << "DEBUG: find_base_point_deterministic end" << std::endl;
 }
 
 // 检查一个数是否是模p的二次剩余
 bool is_quadratic_residue(const mpz_t a, const mpz_t p) {
+    std::cout << "DEBUG: is_quadratic_residue start" << std::endl;
     // 使用欧拉准则: a是模p的二次剩余当且仅当 a^((p-1)/2) ≡ 1 (mod p)
     if (mpz_sgn(a) == 0) return true; // 0总是二次剩余
 
@@ -307,23 +340,27 @@ bool is_quadratic_residue(const mpz_t a, const mpz_t p) {
 
     mpz_clear(exponent);
     mpz_clear(result);
-
+    std::cout << "DEBUG: is_quadratic_residue end" << std::endl;
     return is_residue;
 }
 
 // 计算模平方根，如果成功返回true，否则返回false
 bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
+    std::cout << "DEBUG: mpz_sqrtmod start" << std::endl;
     // 使用Shanks-Tonelli算法计算模平方根
     // 这里使用一个简化但更可靠的实现
 
     // 特殊情况：a为0
     if (mpz_sgn(a) == 0) {
         mpz_set_ui(result, 0);
+        std::cout << "DEBUG: mpz_sqrtmod end (zero case)" << std::endl;
         return true;
     }
 
     // 检查是否为二次剩余
+    std::cout << "DEBUG: mpz_sqrtmod calling is_quadratic_residue" << std::endl;
     if (!is_quadratic_residue(a, p)) {
+        std::cout << "DEBUG: mpz_sqrtmod end (not quadratic residue)" << std::endl;
         return false;
     }
 
@@ -347,12 +384,14 @@ bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
 
         mpz_clear(exponent);
         mpz_clear(mod4);
+        std::cout << "DEBUG: mpz_sqrtmod end (p ≡ 3 mod 4 case)" << std::endl;
         return true;
     }
 
     mpz_clear(mod4);
 
     // 对于其他情况，使用mpz_sqrt并验证结果
+    std::cout << "DEBUG: mpz_sqrtmod general case start" << std::endl;
     mpz_sqrt(result, a);
     mpz_mod(result, result, p);
 
@@ -363,17 +402,22 @@ bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
     mpz_mod(square, square, p);
 
     bool valid = (mpz_cmp(square, a) == 0);
+    std::cout << "DEBUG: mpz_sqrtmod clearing square (first time)" << std::endl;
     mpz_clear(square);
 
     // 如果验证失败，尝试另一种方法
     if (!valid && mpz_sgn(result) != 0) {
         // 尝试 p - result
+        std::cout << "DEBUG: mpz_sqrtmod alternative method start" << std::endl;
         mpz_sub(result, p, result);
+        mpz_init(square);  // 重新初始化square变量
         mpz_mul(square, result, result);
         mpz_mod(square, square, p);
         valid = (mpz_cmp(square, a) == 0);
+        std::cout << "DEBUG: mpz_sqrtmod clearing square (second time)" << std::endl;
         mpz_clear(square);
     }
 
+    std::cout << "DEBUG: mpz_sqrtmod end (general case)" << std::endl;
     return valid;
 }
