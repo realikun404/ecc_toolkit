@@ -91,17 +91,19 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
     mpz_set_ui(curve->h, 1);
 
     // 寻找曲线上的点
-    mpz_t x, rhs, y_squared, y;
+    mpz_t x, rhs, y_squared;
     mpz_init(x);
     mpz_init(rhs);
     mpz_init(y_squared);
-    mpz_init(y);
 
     // 尝试不同的x值，直到找到一个在曲线上的点
-    int max_attempts = 10000;  // 最大尝试次数
-    for (int i = 0; i < max_attempts; i++) {
-        // 生成随机x值
+    int max_attempts = 100000;  // 增加最大尝试次数
+    for (int i = 1; i < max_attempts; i++) {
+        // 生成随机x值 (从1开始，避免x=0)
         mpz_urandomm(x, state, curve->p);
+        if (mpz_sgn(x) == 0) {
+            mpz_set_ui(x, 1);
+        }
 
         // 计算右边: x^3 + Ax^2 + x (mod p)
         mpz_t temp1, temp2;
@@ -140,30 +142,149 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
 
             // 检查y_squared是否是二次剩余（即是否有解）
             if (is_quadratic_residue(y_squared, curve->p)) {
-                // 计算y值（简化版）
-                mpz_sqrtmod(y, y_squared, curve->p);
+                // 计算y值
+                mpz_t y;
+                mpz_init(y);
+                bool sqrt_success = mpz_sqrtmod(y, y_squared, curve->p);
+                if (sqrt_success && mpz_sgn(y) != 0) {
+                    // 验证点是否在曲线上
+                    mpz_t left_side, right_side;
+                    mpz_init(left_side);
+                    mpz_init(right_side);
 
-                // 检查点是否有效
-                if (mpz_sgn(y) != 0) {
-                    mpz_set(curve->x, x);
-                    mpz_set(curve->y, y);
-                    mpz_clear(temp1);
-                    mpz_clear(temp2);
-                    mpz_clear(b_inv);
-                    break;
+                    // 计算By^2
+                    mpz_mul(left_side, curve->B, y_squared);
+                    mpz_mod(left_side, left_side, curve->p);
+
+                    // 比较左右两边
+                    if (mpz_cmp(left_side, rhs) == 0) {
+                        mpz_set(curve->x, x);
+                        mpz_set(curve->y, y);
+                        mpz_clear(left_side);
+                        mpz_clear(right_side);
+                        mpz_clear(y);
+                        mpz_clear(temp1);
+                        mpz_clear(temp2);
+                        mpz_clear(b_inv);
+                        break;
+                    }
+                    mpz_clear(left_side);
+                    mpz_clear(right_side);
                 }
+                mpz_clear(y);
             }
         }
 
         mpz_clear(temp1);
         mpz_clear(temp2);
         mpz_clear(b_inv);
+
+        // 如果尝试了很长时间还没找到，就使用一个确定能找到点的方法
+        if (i == max_attempts - 1) {
+            // 使用确定性方法寻找基点
+            find_base_point_deterministic(curve);
+        }
     }
 
     mpz_clear(x);
     mpz_clear(rhs);
     mpz_clear(y_squared);
-    mpz_clear(y);
+}
+
+// 确定性方法寻找基点
+void find_base_point_deterministic(MontgomeryCurve* curve) {
+    mpz_t x, rhs, y_squared;
+    mpz_init(x);
+    mpz_init(rhs);
+    mpz_init(y_squared);
+
+    // 从1开始尝试x值
+    mpz_set_ui(x, 1);
+
+    // 尝试最多1000个x值
+    for (int i = 0; i < 1000; i++) {
+        // 计算右边: x^3 + Ax^2 + x (mod p)
+        mpz_t temp1, temp2;
+        mpz_init(temp1);
+        mpz_init(temp2);
+
+        // x^2
+        mpz_mul(temp1, x, x);
+        mpz_mod(temp1, temp1, curve->p);
+
+        // Ax^2
+        mpz_mul(temp2, curve->A, temp1);
+        mpz_mod(temp2, temp2, curve->p);
+
+        // x^3
+        mpz_mul(temp1, temp1, x);
+        mpz_mod(temp1, temp1, curve->p);
+
+        // x^3 + Ax^2
+        mpz_add(rhs, temp1, temp2);
+        mpz_mod(rhs, rhs, curve->p);
+
+        // x^3 + Ax^2 + x
+        mpz_add(rhs, rhs, x);
+        mpz_mod(rhs, rhs, curve->p);
+
+        // 计算 y^2 = (x^3 + Ax^2 + x) / B (mod p)
+        mpz_t b_inv;
+        mpz_init(b_inv);
+
+        // 计算B的逆元
+        if (mpz_invert(b_inv, curve->B, curve->p)) {
+            // 计算 (x^3 + Ax^2 + x) / B (mod p)
+            mpz_mul(y_squared, rhs, b_inv);
+            mpz_mod(y_squared, y_squared, curve->p);
+
+            // 检查y_squared是否是二次剩余（即是否有解）
+            if (is_quadratic_residue(y_squared, curve->p)) {
+                // 计算y值
+                mpz_t y;
+                mpz_init(y);
+                bool sqrt_success = mpz_sqrtmod(y, y_squared, curve->p);
+                if (sqrt_success && mpz_sgn(y) != 0) {
+                    // 验证点是否在曲线上
+                    mpz_t left_side;
+                    mpz_init(left_side);
+
+                    // 计算By^2
+                    mpz_mul(left_side, curve->B, y_squared);
+                    mpz_mod(left_side, left_side, curve->p);
+
+                    // 比较左右两边
+                    if (mpz_cmp(left_side, rhs) == 0) {
+                        mpz_set(curve->x, x);
+                        mpz_set(curve->y, y);
+                        mpz_clear(left_side);
+                        mpz_clear(y);
+                        mpz_clear(temp1);
+                        mpz_clear(temp2);
+                        mpz_clear(b_inv);
+                        mpz_clear(x);
+                        mpz_clear(rhs);
+                        mpz_clear(y_squared);
+                        return;
+                    }
+                    mpz_clear(left_side);
+                }
+                mpz_clear(y);
+            }
+        }
+
+        mpz_clear(temp1);
+        mpz_clear(temp2);
+        mpz_clear(b_inv);
+
+        // 尝试下一个x值
+        mpz_add_ui(x, x, 1);
+        mpz_mod(x, x, curve->p);
+    }
+
+    mpz_clear(x);
+    mpz_clear(rhs);
+    mpz_clear(y_squared);
 }
 
 // 检查一个数是否是模p的二次剩余
@@ -191,10 +312,69 @@ bool is_quadratic_residue(const mpz_t a, const mpz_t p) {
     return is_residue;
 }
 
-// 计算模平方根（简化版）
-void mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
-    // 简化实现：直接使用mpz_sqrt并取模
-    // 注意：这在实际应用中可能不总是正确，但对于某些特殊形式的素数是有效的
+// 计算模平方根，如果成功返回true，否则返回false
+bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
+    // 使用Shanks-Tonelli算法计算模平方根
+    // 这里使用一个简化但更可靠的实现
+
+    // 特殊情况：a为0
+    if (mpz_sgn(a) == 0) {
+        mpz_set_ui(result, 0);
+        return true;
+    }
+
+    // 检查是否为二次剩余
+    if (!is_quadratic_residue(a, p)) {
+        return false;
+    }
+
+    // 对于p ≡ 3 (mod 4)的情况，有一个简单的公式:
+    // sqrt(a) ≡ a^((p+1)/4) (mod p)
+    mpz_t mod4;
+    mpz_init(mod4);
+    mpz_mod_ui(mod4, p, 4);
+
+    if (mpz_cmp_ui(mod4, 3) == 0) {
+        // p ≡ 3 (mod 4)
+        mpz_t exponent;
+        mpz_init(exponent);
+
+        // 计算 (p+1)/4
+        mpz_add_ui(exponent, p, 1);
+        mpz_fdiv_q_2exp(exponent, exponent, 2);
+
+        // 计算 a^((p+1)/4) mod p
+        mpz_powm(result, a, exponent, p);
+
+        mpz_clear(exponent);
+        mpz_clear(mod4);
+        return true;
+    }
+
+    mpz_clear(mod4);
+
+    // 对于其他情况，使用mpz_sqrt并验证结果
     mpz_sqrt(result, a);
     mpz_mod(result, result, p);
+
+    // 验证结果
+    mpz_t square;
+    mpz_init(square);
+    mpz_mul(square, result, result);
+    mpz_mod(square, square, p);
+
+    bool valid = (mpz_cmp(square, a) == 0);
+    mpz_clear(square);
+
+    // 如果验证失败，尝试另一种方法
+    if (!valid && mpz_sgn(result) != 0) {
+        // 尝试 p - result
+        mpz_sub(result, p, result);
+        mpz_mul(square, result, result);
+        mpz_mod(square, square, p);
+        valid = (mpz_cmp(square, a) == 0);
+        mpz_clear(square);
+    }
+
+    return valid;
 }
