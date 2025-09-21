@@ -109,10 +109,12 @@ int main() {
 
             clear_montgomery_point(&base_point);
         } else {
-            std::cout << "WARNING: Base point was not found!" << std::endl;
+            std::cout << "ERROR: Base point coordinates are both zero!" << std::endl;
+            clear_montgomery_curve(&curve);
+            return 1;
         }
     } else {
-        std::cout << "Failed to generate Montgomery curve!" << std::endl;
+        std::cout << "Failed to generate Montgomery curve with valid base point!" << std::endl;
         clear_montgomery_curve(&curve);
         return 1;
     }
