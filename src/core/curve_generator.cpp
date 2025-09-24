@@ -4,6 +4,7 @@
 #include <gmp.h>
 #include <iostream>
 #include <random>
+#include "montgomery_curve.h"
 
 // 初始化Montgomery曲线参数
 void init_montgomery_curve(MontgomeryCurve* curve) {
@@ -107,6 +108,11 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
     int max_attempts = 100000;  // 增加最大尝试次数
     bool found = false;
     for (int i = 1; i < max_attempts && !found; i++) {
+        // 添加进度打印
+        if (i % 10000 == 0) {
+            std::cout << "Trying random point: " << i << "/" << max_attempts << std::endl;
+        }
+
         // 生成随机x值 (从1开始，避免x=0)
         mpz_urandomm(x, state, curve->p);
         if (mpz_sgn(x) == 0) {
@@ -169,6 +175,7 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
                         mpz_set(curve->x, x);
                         mpz_set(curve->y, y);
                         found = true;
+                        std::cout << "Found point on curve at attempt " << i << std::endl;
                         mpz_clear(left_side);
                         mpz_clear(y);
                     } else {
@@ -187,6 +194,7 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
 
         // 如果找到了基点，验证它是否为生成元
         if (found) {
+            std::cout << "Point found on curve, verifying generator..." << std::endl;
             // 简化处理：设置阶数为一个大素数（实际应用中需要更精确的计算）
             // 这里只是一个示例，实际应该计算曲线的真实阶数
             mpz_set(curve->n, curve->p);
@@ -194,10 +202,13 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
             // 验证基点是否为生成元
             if (!verify_generator(curve)) {
                 // 如果不是生成元，继续寻找
+                std::cout << "Point is not a valid generator, continuing search..." << std::endl;
                 found = false;
                 mpz_set_ui(curve->x, 0);
                 mpz_set_ui(curve->y, 0);
                 mpz_set_ui(curve->n, 0);
+            } else {
+                std::cout << "Valid generator found!" << std::endl;
             }
         }
 
@@ -211,12 +222,12 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
     }
 
     // 如果随机方法没找到，使用确定性方法
+    std::cout << "Random search failed, trying deterministic method..." << std::endl;
     mpz_clear(x);
     mpz_clear(rhs);
     mpz_clear(y_squared);
     find_base_point_deterministic(curve);
 }
-
 
 // 确定性方法寻找基点
 void find_base_point_deterministic(MontgomeryCurve* curve) {
@@ -231,6 +242,11 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
     // 尝试最多1000个x值
     bool found = false;
     for (int i = 0; i < 1000 && !found; i++) {
+        // 添加进度打印
+        if (i % 100 == 0) {
+            std::cout << "Trying deterministic point: " << i << "/1000 (x=" << mpz_get_ui(x) << ")" << std::endl;
+        }
+
         // 计算右边: x^3 + Ax^2 + x (mod p)
         mpz_t temp1, temp2;
         mpz_init(temp1);
@@ -287,6 +303,7 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
                         mpz_set(curve->x, x);
                         mpz_set(curve->y, y);
                         found = true;
+                        std::cout << "Found point on curve using deterministic method at x=" << mpz_get_ui(x) << std::endl;
                         mpz_clear(left_side);
                         mpz_clear(y);
                     } else {
@@ -305,6 +322,7 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
 
         // 如果找到了基点，验证它是否为生成元
         if (found) {
+            std::cout << "Point found on curve, verifying generator..." << std::endl;
             // 简化处理：设置阶数为一个大素数（实际应用中需要更精确的计算）
             // 这里只是一个示例，实际应该计算曲线的真实阶数
             mpz_set(curve->n, curve->p);
@@ -312,10 +330,13 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
             // 验证基点是否为生成元
             if (!verify_generator(curve)) {
                 // 如果不是生成元，继续寻找
+                std::cout << "Point is not a valid generator, continuing search..." << std::endl;
                 found = false;
                 mpz_set_ui(curve->x, 0);
                 mpz_set_ui(curve->y, 0);
                 mpz_set_ui(curve->n, 0);
+            } else {
+                std::cout << "Valid generator found!" << std::endl;
             }
         }
 
@@ -336,6 +357,7 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
     mpz_clear(rhs);
     mpz_clear(y_squared);
 }
+
 
 
 // 检查一个数是否是模p的二次剩余
@@ -415,26 +437,34 @@ bool calculate_base_point_order(const MontgomeryCurve* curve, mpz_t order) {
 
 // 验证基点是否为生成元
 bool verify_generator(const MontgomeryCurve* curve) {
+    std::cout << "Verifying generator..." << std::endl;
+
     // 首先验证基点是否在曲线上
     if (!is_point_on_curve_valid(curve)) {
+        std::cout << "Point is not on curve" << std::endl;
         return false;
     }
 
     // 检查curve->n是否已设置
     if (mpz_sgn(curve->n) == 0) {
+        std::cout << "Curve order not set" << std::endl;
         return false;
     }
 
     // 验证curve->n是否为素数
+    std::cout << "Checking if order is prime..." << std::endl;
     if (mpz_probab_prime_p(curve->n, 25) == 0) {
+        std::cout << "Curve order is not prime" << std::endl;
         return false;
     }
 
     // 验证基点的阶是否等于curve->n
+    std::cout << "Calculating base point order..." << std::endl;
     mpz_t computed_order;
     mpz_init(computed_order);
 
     if (!calculate_base_point_order(curve, computed_order)) {
+        std::cout << "Failed to calculate base point order" << std::endl;
         mpz_clear(computed_order);
         return false;
     }
@@ -442,9 +472,16 @@ bool verify_generator(const MontgomeryCurve* curve) {
     // 比较计算得到的阶数与curve->n
     bool is_generator = (mpz_cmp(computed_order, curve->n) == 0);
 
+    if (is_generator) {
+        std::cout << "Generator verification successful!" << std::endl;
+    } else {
+        std::cout << "Generator verification failed - orders do not match" << std::endl;
+    }
+
     mpz_clear(computed_order);
     return is_generator;
 }
+
 
 // 辅助函数：验证基点是否在曲线上
 bool is_point_on_curve_valid(const MontgomeryCurve* curve) {
