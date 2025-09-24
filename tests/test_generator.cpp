@@ -1,3 +1,4 @@
+// test_generator.cpp
 #include "curve_generator.h"
 #include "parameter_validator.h"
 #include "montgomery_curve.h"
@@ -33,6 +34,10 @@ int main() {
 
         std::cout << "Base point y: ";
         mpz_out_str(stdout, 10, curve.y);
+        std::cout << std::endl;
+
+        std::cout << "Base point order n: ";
+        mpz_out_str(stdout, 10, curve.n);
         std::cout << std::endl;
 
         // 验证基点是否在曲线上
@@ -107,6 +112,23 @@ int main() {
                 return 1;
             }
 
+            // 验证基点是否为生成元
+            if (verify_generator(&curve)) {
+                std::cout << "SUCCESS: Base point is verified as a generator!" << std::endl;
+            } else {
+                std::cout << "ERROR: Base point is NOT a generator!" << std::endl;
+                clear_montgomery_point(&base_point);
+                clear_montgomery_curve(&curve);
+                return 1;
+            }
+
+            // 验证阶数是否为素数
+            if (mpz_probab_prime_p(curve.n, 25)) {
+                std::cout << "SUCCESS: Base point order is prime!" << std::endl;
+            } else {
+                std::cout << "WARNING: Base point order is not prime!" << std::endl;
+            }
+
             clear_montgomery_point(&base_point);
         } else {
             std::cout << "ERROR: Base point coordinates are both zero!" << std::endl;
@@ -121,5 +143,46 @@ int main() {
 
     clear_montgomery_curve(&curve);
     std::cout << "Base point generation test completed successfully!" << std::endl;
+
+    // 额外测试不同安全级别的曲线生成
+    std::cout << "\nTesting different security levels..." << std::endl;
+    int security_levels[] = {112, 128, 192, 256};
+    int num_levels = sizeof(security_levels) / sizeof(security_levels[0]);
+
+    for (int i = 0; i < num_levels; i++) {
+        MontgomeryCurve test_curve;
+        init_montgomery_curve(&test_curve);
+
+        std::cout << "Testing security level " << security_levels[i] << "..." << std::endl;
+        if (generate_montgomery_curve(&test_curve, security_levels[i])) {
+            std::cout << "SUCCESS: Curve generated for security level " << security_levels[i] << std::endl;
+
+            // 验证曲线参数
+            if (validate_montgomery_curve(&test_curve)) {
+                std::cout << "SUCCESS: Curve parameters validated for security level " << security_levels[i] << std::endl;
+            } else {
+                std::cout << "ERROR: Curve parameters validation failed for security level " << security_levels[i] << std::endl;
+                clear_montgomery_curve(&test_curve);
+                return 1;
+            }
+
+            // 验证基点是否为生成元
+            if (verify_generator(&test_curve)) {
+                std::cout << "SUCCESS: Base point is verified as a generator for security level " << security_levels[i] << std::endl;
+            } else {
+                std::cout << "ERROR: Base point is NOT a generator for security level " << security_levels[i] << std::endl;
+                clear_montgomery_curve(&test_curve);
+                return 1;
+            }
+        } else {
+            std::cout << "ERROR: Failed to generate curve for security level " << security_levels[i] << std::endl;
+            clear_montgomery_curve(&test_curve);
+            return 1;
+        }
+
+        clear_montgomery_curve(&test_curve);
+    }
+
+    std::cout << "All security level tests passed!" << std::endl;
     return 0;
 }
