@@ -185,7 +185,23 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
         mpz_clear(temp2);
         mpz_clear(b_inv);
 
-        // 如果找到了基点，清理循环中的变量
+        // 如果找到了基点，验证它是否为生成元
+        if (found) {
+            // 简化处理：设置阶数为一个大素数（实际应用中需要更精确的计算）
+            // 这里只是一个示例，实际应该计算曲线的真实阶数
+            mpz_set(curve->n, curve->p);
+
+            // 验证基点是否为生成元
+            if (!verify_generator(curve)) {
+                // 如果不是生成元，继续寻找
+                found = false;
+                mpz_set_ui(curve->x, 0);
+                mpz_set_ui(curve->y, 0);
+                mpz_set_ui(curve->n, 0);
+            }
+        }
+
+        // 如果找到了基点且验证通过，清理循环中的变量
         if (found) {
             mpz_clear(x);
             mpz_clear(rhs);
@@ -200,6 +216,7 @@ void find_base_point(MontgomeryCurve* curve, gmp_randstate_t state) {
     mpz_clear(y_squared);
     find_base_point_deterministic(curve);
 }
+
 
 // 确定性方法寻找基点
 void find_base_point_deterministic(MontgomeryCurve* curve) {
@@ -286,7 +303,23 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
         mpz_clear(temp2);
         mpz_clear(b_inv);
 
-        // 如果找到了基点，清理循环中的变量
+        // 如果找到了基点，验证它是否为生成元
+        if (found) {
+            // 简化处理：设置阶数为一个大素数（实际应用中需要更精确的计算）
+            // 这里只是一个示例，实际应该计算曲线的真实阶数
+            mpz_set(curve->n, curve->p);
+
+            // 验证基点是否为生成元
+            if (!verify_generator(curve)) {
+                // 如果不是生成元，继续寻找
+                found = false;
+                mpz_set_ui(curve->x, 0);
+                mpz_set_ui(curve->y, 0);
+                mpz_set_ui(curve->n, 0);
+            }
+        }
+
+        // 如果找到了基点且验证通过，清理循环中的变量
         if (found) {
             mpz_clear(x);
             mpz_clear(rhs);
@@ -303,6 +336,7 @@ void find_base_point_deterministic(MontgomeryCurve* curve) {
     mpz_clear(rhs);
     mpz_clear(y_squared);
 }
+
 
 // 检查一个数是否是模p的二次剩余
 bool is_quadratic_residue(const mpz_t a, const mpz_t p) {
@@ -327,6 +361,107 @@ bool is_quadratic_residue(const mpz_t a, const mpz_t p) {
     mpz_clear(result);
     return is_residue;
 }
+
+// 计算基点的阶数
+bool calculate_base_point_order(const MontgomeryCurve* curve, mpz_t order) {
+    // 创建基点
+    MontgomeryPoint base_point;
+    init_montgomery_point(&base_point);
+    mpz_set(base_point.x, curve->x);
+    mpz_set(base_point.y, curve->y);
+    base_point.is_infinity = 0;
+
+    // 创建无穷远点作为结果
+    MontgomeryPoint result;
+    init_montgomery_point(&result);
+    set_point_infinity(&result);
+
+    // 从1开始尝试阶数，直到k*P = 无穷远点
+    mpz_t k;
+    mpz_init_set_ui(k, 1);
+
+    // 设置一个合理的上限以避免无限循环
+    mpz_t max_order;
+    mpz_init(max_order);
+    mpz_set(max_order, curve->p); // 阶数不会超过p
+    mpz_mul_ui(max_order, max_order, 2); // 设置一个稍大的上限
+
+    bool found = false;
+    while (mpz_cmp(k, max_order) < 0) {
+        // 计算k*P
+        if (montgomery_point_multiply(&result, k, &base_point, curve->A, curve->p)) {
+            // 如果结果是无穷远点，则k是阶数
+            if (is_point_infinity(&result)) {
+                mpz_set(order, k);
+                found = true;
+                break;
+            }
+        } else {
+            // 点乘失败
+            break;
+        }
+
+        // 增加k
+        mpz_add_ui(k, k, 1);
+    }
+
+    clear_montgomery_point(&base_point);
+    clear_montgomery_point(&result);
+    mpz_clear(k);
+    mpz_clear(max_order);
+
+    return found;
+}
+
+// 验证基点是否为生成元
+bool verify_generator(const MontgomeryCurve* curve) {
+    // 首先验证基点是否在曲线上
+    if (!is_point_on_curve_valid(curve)) {
+        return false;
+    }
+
+    // 检查curve->n是否已设置
+    if (mpz_sgn(curve->n) == 0) {
+        return false;
+    }
+
+    // 验证curve->n是否为素数
+    if (mpz_probab_prime_p(curve->n, 25) == 0) {
+        return false;
+    }
+
+    // 验证基点的阶是否等于curve->n
+    mpz_t computed_order;
+    mpz_init(computed_order);
+
+    if (!calculate_base_point_order(curve, computed_order)) {
+        mpz_clear(computed_order);
+        return false;
+    }
+
+    // 比较计算得到的阶数与curve->n
+    bool is_generator = (mpz_cmp(computed_order, curve->n) == 0);
+
+    mpz_clear(computed_order);
+    return is_generator;
+}
+
+// 辅助函数：验证基点是否在曲线上
+bool is_point_on_curve_valid(const MontgomeryCurve* curve) {
+    // 创建基点
+    MontgomeryPoint base_point;
+    init_montgomery_point(&base_point);
+    mpz_set(base_point.x, curve->x);
+    mpz_set(base_point.y, curve->y);
+    base_point.is_infinity = 0;
+
+    // 验证点是否在曲线上
+    bool valid = is_point_on_curve(&base_point, curve->A, curve->B, curve->p);
+
+    clear_montgomery_point(&base_point);
+    return valid;
+}
+
 
 // 计算模平方根，如果成功返回true，否则返回false
 bool mpz_sqrtmod(mpz_t result, const mpz_t a, const mpz_t p) {
